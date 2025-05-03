@@ -1,0 +1,18 @@
+CREATE TABLE producten (
+  id SERIAL PRIMARY KEY,
+  naam TEXT NOT NULL,
+  voorraad INTEGER DEFAULT 0
+);
+
+CREATE TABLE gebruikers (
+  id SERIAL PRIMARY KEY,
+  code TEXT NOT NULL,
+  naam TEXT NOT NULL
+);
+
+CREATE TABLE logs (
+  id SERIAL PRIMARY KEY,
+  gebruiker TEXT NOT NULL,
+  product TEXT NOT NULL,
+  tijd TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
