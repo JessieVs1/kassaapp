@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <title>Koelkast App</title>
+  <style>
+    html, body {
+      height: 100%; margin: 0; padding: 0; font-family: Arial, sans-serif;
+      background: linear-gradient(to right, #74ebd5, #acb6e5);
+    }
+    body {
+      display: flex; justify-content: center; align-items: center;
+    }
+    .container { padding: 20px; display: none; width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto;
+      background: white; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    .container.active { display: block; }
+    h1, h2, h3 { text-align: center; }
+    .center-buttons { display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 300px; gap: 15px; }
+    button {
+      display: inline-block; padding: 15px 30px; font-size: 18px; cursor: pointer;
+      background-color: #3498db; color: white; border: none; border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background 0.3s;
+    }
+    button:hover { background-color: #2980b9; }
+    button.back { background-color: #95a5a6; }
+    button.verwijder { background-color: #e74c3c; }
+    button.reset { background-color: #f39c12; }
+    input { padding: 10px; margin: 5px; width: 200px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    table, th, td { border: 1px solid #ccc; }
+    th, td { padding: 8px; text-align: center; }
+    .beheer-sectie { margin-bottom: 30px; }
+    .product-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px; margin-top: 20px;
+    }
+    .product-tile {
+      background-color: #ecf0f1; border-radius: 10px; padding: 15px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1); display: flex;
+      flex-direction: column; align-items: center;
+    }
+    .product-tile button { margin-top: 10px; }
+    .overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5); display: none;
+      align-items: center; justify-content: center; z-index: 1000;
+    }
+    .overlay.active { display: flex; }
+    .popup {
+      background: white; padding: 20px; border-radius: 10px; text-align: center;
+    }
+    .succesmelding {
+      margin-top: 20px; text-align: center; color: green; font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div id="startscherm" class="container active">
+    <h1>Welkom bij de Koelkast App</h1>
+    <div class="center-buttons">
+      <button onclick="toonCodePopup('bestellen')">Bestellen</button>
+      <button onclick="toonCodePopup('beheer')">Beheer</button>
+    </div>
+  </div>
+
+  <div id="bestelscherm" class="container">
+    <h2>Bestel Producten</h2>
+    <div class="product-grid" id="productContainer"></div>
+    <div id="bestelMelding" class="succesmelding"></div>
+    <button class="back" onclick="terugNaarStart()">Terug</button>
+  </div>
+
+  <div id="beheerscherm" class="container">
+    <h2>Beheer</h2>
+    <div class="beheer-sectie">
+      <h3>Voorraad aanpassen</h3>
+      <table id="voorraadTabel">
+        <thead><tr><th>Product</th><th>Aantal</th><th>Actie</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="beheer-sectie">
+      <h3>Logs</h3>
+      <table id="logsTabel">
+        <thead><tr><th>Gebruiker</th><th>Product</th><th>Tijd</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <button class="reset" onclick="resetLogs()">Reset Logs</button>
+    </div>
+    <div class="beheer-sectie">
+      <h3>Gebruikers</h3>
+      <table>
+        <thead><tr><th>Code</th><th>Naam</th></tr></thead>
+        <tbody id="gebruikersTabel"></tbody>
+      </table>
+    </div>
+    <button class="back" onclick="terugNaarStart()">Terug</button>
+  </div>
+
+  <div id="codeOverlay" class="overlay">
+    <div class="popup">
+      <h3>Voer toegangscode in</h3>
+      <input type="password" id="codeInput" placeholder="Code">
+      <br>
+      <button onclick="verifieerCode()">Ga verder</button>
+    </div>
+  </div>
+
+  <script>
+    let doelScherm = null;
+
+    function toonCodePopup(doel) {
+      doelScherm = doel;
+      document.getElementById('codeOverlay').classList.add('active');
+    }
+
+    async function verifieerCode() {
+      const code = document.getElementById('codeInput').value;
+      const overlay = document.getElementById('codeOverlay');
+      overlay.classList.remove('active');
+      document.getElementById('codeInput').value = '';
+
+      if (doelScherm === 'beheer') {
+        if (code === 'Admin123') {
+          toonScherm('beheerscherm');
+          laadVoorraad();
+          laadLogs();
+          laadGebruikers();
+        } else {
+          alert('Ongeldige toegangscode');
+        }
+      } else if (doelScherm === 'bestellen') {
+        localStorage.setItem('userCode', code);
+        toonScherm('bestelscherm');
+        laadProducten();
+      }
+    }
+
+    function toonScherm(id) {
+      document.querySelectorAll('.container').forEach(c => c.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function terugNaarStart() {
+      toonScherm('startscherm');
+    }
+
+    async function laadProducten() {
+      const res = await fetch('/producten');
+      const producten = await res.json();
+      const container = document.getElementById('productContainer');
+      container.innerHTML = '';
+      producten.forEach(product => {
+        const div = document.createElement('div');
+        div.className = 'product-tile';
+        div.innerHTML = `
+          <strong>${product.naam}</strong>
+          <p>Voorraad: ${product.voorraad}</p>
+          <button onclick="bestelProduct(${product.id})">Bestel</button>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    async function bestelProduct(id) {
+      const gebruiker = localStorage.getItem('userCode');
+      const res = await fetch('/bestel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gebruiker, product_id: id })
+      });
+      const data = await res.json();
+      document.getElementById('bestelMelding').innerText = data.message;
+      laadProducten();
+    }
+
+    async function laadVoorraad() {
+      const res = await fetch('/producten');
+      const producten = await res.json();
+      const tbody = document.querySelector('#voorraadTabel tbody');
+      tbody.innerHTML = '';
+      producten.forEach(product => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${product.naam}</td>
+          <td>${product.voorraad}</td>
+          <td><button onclick="wijzigVoorraad(${product.id})">+1</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function wijzigVoorraad(id) {
+      await fetch(`/producten/${id}`, { method: 'PUT' });
+      laadVoorraad();
+    }
+
+    async function laadLogs() {
+      const res = await fetch('/logs');
+      const logs = await res.json();
+      const tbody = document.querySelector('#logsTabel tbody');
+      tbody.innerHTML = '';
+      logs.forEach(log => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${log.gebruiker}</td><td>${log.product}</td><td>${log.tijd}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function resetLogs() {
+      await fetch('/logs', { method: 'DELETE' });
+      laadLogs();
+    }
+
+    async function laadGebruikers() {
+      const res = await fetch('/gebruikers');
+      const gebruikers = await res.json();
+      const tbody = document.getElementById('gebruikersTabel');
+      tbody.innerHTML = '';
+      gebruikers.forEach(g => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${g.code}</td><td>${g.naam}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+  </script>
+</body>
+</html>
